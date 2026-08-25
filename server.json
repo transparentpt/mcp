@@ -1,0 +1,27 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.transparentpt/mcp",
+  "description": "Budget used cars in Portugal: search stock, check if an asking price is fair, estimate yearly running cost, contact.",
+  "repository": {
+    "url": "https://github.com/transparentpt/mcp",
+    "source": "github"
+  },
+  "version": "0.1.0",
+  "websiteUrl": "https://transparent.pt",
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "transparentcars-mcp",
+      "version": "0.1.0",
+      "runtimeHint": "npx",
+      "transport": { "type": "stdio" }
+    }
+  ],
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://transparent.pt/mcp"
+    }
+  ]
+}

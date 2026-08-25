@@ -1,0 +1,21 @@
+{
+  "name": "transparentcars",
+  "description": "Search budget used cars in Portugal, check whether an asking price is fair, estimate a car's yearly running cost, and reach TransparentCars.",
+  "version": "0.1.0",
+  "vendor": "TransparentCars",
+  "homepage": "https://transparent.pt",
+  "documentation": "https://github.com/transparentpt/mcp",
+  "license": "MIT",
+  "transports": {
+    "streamable_http": { "url": "https://transparent.pt/mcp" },
+    "stdio": { "command": "npx", "args": ["-y", "transparentcars-mcp"] }
+  },
+  "tools": [
+    "search_inventory",
+    "get_car",
+    "check_fair_price",
+    "cost_to_own",
+    "list_makes_models",
+    "contact_me"
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "name": "transparentcars-mcp",
+  "version": "0.1.0",
+  "mcpName": "io.github.transparentpt/mcp",
+  "description": "MCP server for TransparentCars — search budget used cars in Portugal, check whether an asking price is fair, estimate a car's yearly running cost, and get in touch. Thin wrapper over the public transparent.pt API.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "transparentcars-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    ".well-known"
+  ],
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "cars",
+    "portugal",
+    "used-cars",
+    "budget-cars",
+    "automotive"
+  ],
+  "homepage": "https://transparent.pt",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/transparentpt/mcp"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js",
+    "start:http": "node dist/http.js",
+    "prepublishOnly": "npm run build"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.5.0"
+  }
+}
