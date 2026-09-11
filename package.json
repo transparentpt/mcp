@@ -1,6 +1,6 @@
 {
   "name": "transparentcars-mcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "mcpName": "io.github.transparentpt/mcp",
   "description": "MCP server for TransparentCars — search budget used cars in Portugal, check whether an asking price is fair, estimate a car's yearly running cost, and get in touch. Thin wrapper over the public transparent.pt API.",
   "license": "MIT",

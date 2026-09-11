@@ -1,4 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { ListResourcesRequestSchema, ListPromptsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { apiGet, apiPost, SITE, DEFAULT_LANG } from "./api.js";
 
@@ -209,4 +210,12 @@ export function registerTools(server: McpServer) {
       return text("Sent ✓ TransparentCars received your request and will contact you soon.");
     }
   );
+
+  // This is a tools-only server. Advertise empty resources/prompts (rather than leaving them
+  // unregistered) so probing clients — Smithery's inspector, etc. — get an empty list back
+  // instead of a "-32601 Method not found" warning. Must register the capability before the handler.
+  const low = server.server as any;
+  low.registerCapabilities({ resources: {}, prompts: {} });
+  low.setRequestHandler(ListResourcesRequestSchema, async () => ({ resources: [] }));
+  low.setRequestHandler(ListPromptsRequestSchema, async () => ({ prompts: [] }));
 }
