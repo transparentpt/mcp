@@ -8,6 +8,41 @@ const text = (s: string) => ({ content: [{ type: "text" as const, text: s }] });
 const eur = (n?: number) => (typeof n === "number" ? `€${Math.round(n).toLocaleString("en-US")}` : "—");
 const carUrl = (slug: string) => `${SITE_URL}/${DEFAULT_LANG}/car/${slug}`;
 
+// Optional inputs shared by the ISV/IUC tools for goods & heavy vehicles. Goods vehicles
+// (vans, trucks) are taxed by GROSS WEIGHT (IUC Cat C/D), not cc+CO2; heavy vehicles pay no ISV.
+const VEHICLE_PARAMS = {
+  vehicle_type: z.enum(["passenger", "van_10", "commercial_15", "commercial_50", "commercial_100",
+    "motorcycle", "autocaravana", "pesados_mercadorias", "pesados_passageiros"]).optional()
+    .describe("Category (default passenger). Goods van → van_10/commercial_*; heavy goods >3500kg → pesados_mercadorias; bus → pesados_passageiros; motorhome → autocaravana; motorcycle → motorcycle."),
+  peso_bruto: z.number().int().optional()
+    .describe("Gross weight (kg). REQUIRED for goods vehicles (van_10/commercial_*/pesados_mercadorias): their IUC is weight-based (Cat C/D)."),
+  utilizacao: z.enum(["particular", "publico"]).optional()
+    .describe("Goods use: particular (Cat C, default) or publico/rental (Cat D)."),
+  axles: z.number().int().optional().describe("Heavy rigid goods ≥12t: axles (2/3/4)."),
+  suspension: z.enum(["pneumatica", "outro"]).optional().describe("Heavy goods ≥12t: driven-axle suspension."),
+  config: z.enum(["rigido", "articulado"]).optional().describe("Heavy goods ≥12t: rigido or articulado (tractor+trailer)."),
+  tractor_axles: z.number().int().optional().describe("Articulated ≥12t: tractor axles (2/3)."),
+  trailer_axles: z.number().int().optional().describe("Articulated ≥12t: trailer axles (1/2/3)."),
+  regiao_autonoma: z.boolean().optional().describe("Used exclusively in Açores/Madeira → −50% IUC (Cat C/D)."),
+};
+
+function vehicleArgs(a: any): Record<string, any> {
+  const o: Record<string, any> = {};
+  for (const k of ["vehicle_type", "peso_bruto", "utilizacao", "axles", "suspension", "config",
+    "tractor_axles", "trailer_axles"]) if (a[k] !== undefined) o[k] = a[k];
+  if (a.regiao_autonoma !== undefined) o.regiao_autonoma = a.regiao_autonoma ? 1 : 0;
+  return o;
+}
+
+const SERVICES = [
+  { name: "Cars in stock", desc: "Used cars ready to view in Portugal.", url: `${SITE_URL}/${DEFAULT_LANG}/carros` },
+  { name: "Import to order", desc: "Source & import a specific car from German/EU auctions, legalized and delivered.", url: `${SITE_URL}/${DEFAULT_LANG}/import` },
+  { name: "Car sourcing", desc: "We find the best option for you in Portugal or abroad.", url: `${SITE_URL}/${DEFAULT_LANG}/sourcing` },
+  { name: "Auction buying", desc: "We bid for you at professional auctions (Auto1 etc.).", url: `${SITE_URL}/${DEFAULT_LANG}/auction` },
+  { name: "We buy / trade-in your car", desc: "Free valuation, fast fair payout.", url: `${SITE_URL}/${DEFAULT_LANG}/sell` },
+  { name: "ISV & IUC calculators", desc: "Free Portuguese car-tax estimates.", url: `${SITE_URL}/${DEFAULT_LANG}/isv` },
+];
+
 export function registerTools(server: McpServer) {
   // ---- search_inventory ---------------------------------------------------
   server.tool(
@@ -184,7 +219,7 @@ export function registerTools(server: McpServer) {
   // ---- contact_me ---------------------------------------------------------
   server.tool(
     "contact_me",
-    "Send a contact request to TransparentCars so a human gets in touch. Only call this when the user explicitly asks to be contacted, provides their own name and a phone or email, AND agrees to share those details — pass consent=true only then. Submitting shares the provided contact details per the TransparentCars privacy policy.",
+    "Send a contact request to TransparentCars so a human gets in touch. Only call this when the user explicitly asks to be contacted, provides their own name and a phone or email, AND agrees to share those details — pass consent=true only then. Never invent, guess, or use placeholder / example / test contact details: pass ONLY the real name and real phone or e-mail the user gave you in this conversation. If you don't have a real phone or e-mail from the user, ask them for it before calling — do not submit fake values. Submitting shares the provided contact details per the TransparentCars privacy policy.",
     {
       name: z.string().describe("The person's name (as they gave it)"),
       contact: z.string().describe("A phone number or email where they can be reached"),
@@ -206,8 +241,140 @@ export function registerTools(server: McpServer) {
         source: "mcp",
         consent: true,
       });
+      if (r?.rejected) return text(r.reason || "That contact looks like a placeholder. Ask the user for a real phone number or e-mail and call again — never submit example or test values.");
       if (r?.duplicate) return text("You already sent this request — TransparentCars has it and will be in touch.");
       return text("Sent ✓ TransparentCars received your request and will contact you soon.");
+    }
+  );
+
+  // ---- calculate_isv ------------------------------------------------------
+  server.tool(
+    "calculate_isv",
+    "Estimate Portuguese car import tax (ISV, Imposto Sobre Veículos) from the official ISV formula (engine-cc + CO₂ components, with age reduction for used cars). A maintained estimate: it matches the AT (Finanças) simulator to the cent on the common WLTP cases, but is not the official figure and may differ on edge cases (NEDC, light-commercial, month rounding) — confirm the final amount on the official AT simulator. Needs engine displacement (cc), CO₂ (g/km, WLTP), fuel and registration year.",
+    {
+      cc: z.number().int().optional().describe("Engine displacement in cm³, e.g. 1950 (not needed for heavy goods/buses)"),
+      co2: z.number().optional().describe("CO₂ emissions in g/km (WLTP), e.g. 130 (passenger/motorhome only)"),
+      fuel: z.string().optional().describe("Fuel: petrol, diesel, hybrid, hybrid_diesel (diesel MHEV/HEV), phev, electric (irrelevant for heavy goods/buses)"),
+      year: z.number().int().describe("First registration year, e.g. 2016"),
+      used: z.boolean().optional().describe("Used vehicle (true, default) or new (false)"),
+      from_eu: z.boolean().optional().describe("Registered in an EU member state (true, default). Set FALSE for non-EU imports (Switzerland, UK, USA, Japan…) — non-EU used cars get NO age reduction, so the ISV is the FULL amount (plus customs duty ~10% and VAT 23%, which this tool does not compute)."),
+      ...VEHICLE_PARAMS,
+    },
+    async (a) => {
+      const r = await apiGet("/isv", {
+        cc: a.cc ?? 0, co2: a.co2 ?? 0, fuel: a.fuel ?? "petrol", year: a.year,
+        used: a.used === false ? 0 : 1, from_eu: a.from_eu === false ? 0 : 1, ...vehicleArgs(a),
+      });
+      const isv = r?.isv || r;
+      if (isv?.not_subject) return text(`ISV: not subject — ${isv.note || "heavy vehicle (>3500 kg), outside the ISV scope (Art. 2 CISV)"}.\n\nHeavy goods vehicles and buses pay no ISV. Details: ${SITE_URL}/${DEFAULT_LANG}/isv`);
+      if (isv?.exempt) return text(`ISV: €0 (exempt). ${isv.note || ""}\n\nISV estimate. Details: ${SITE_URL}/${DEFAULT_LANG}/isv`);
+      const parts = [
+        `ISV (estimate): ${eur(isv?.isv)}`,
+        isv?.table ? `Table: ${isv.table}` : null,
+        typeof isv?.comp_cilindrada === "number" ? `  engine component: ${eur(isv.comp_cilindrada)}` : null,
+        typeof isv?.comp_ambiental === "number" ? `  environmental component: ${eur(isv.comp_ambiental)}` : null,
+        typeof isv?.diesel_surcharge === "number" && isv.diesel_surcharge ? `  diesel surcharge: ${eur(isv.diesel_surcharge)}` : null,
+        a.from_eu === false ? "Non-EU import: NO age reduction — this is the FULL ISV. Customs duty (~10%) and VAT (23%) on price+duty+ISV also apply (not included here)." : null,
+        isv?.note ? isv.note : null,
+      ].filter(Boolean);
+      return text(`${parts.join("\n")}\n\nA maintained estimate from the official cc+CO₂ formula — matches the AT (Finanças) simulator to the cent on the common cases; confirm edge cases on the official simulator. Full breakdown: ${SITE_URL}/${DEFAULT_LANG}/isv`);
+    }
+  );
+
+  // ---- calculate_iuc ------------------------------------------------------
+  server.tool(
+    "calculate_iuc",
+    "Estimate the Portuguese annual road tax (IUC, Imposto Único de Circulação) for a car — the yearly tax an owner pays — from the official IUC table. A maintained estimate; confirm on the official AT simulator. Needs engine displacement (cc), CO₂ (g/km), fuel and registration year.",
+    {
+      cc: z.number().int().optional().describe("Engine displacement in cm³, e.g. 1950 (not needed for goods vehicles)"),
+      co2: z.number().optional().describe("CO₂ emissions in g/km, e.g. 130 (passenger/motorhome only)"),
+      fuel: z.string().optional().describe("Fuel: petrol, diesel, hybrid, hybrid_diesel (diesel MHEV/HEV), phev, electric (irrelevant for heavy goods/buses)"),
+      year: z.number().int().describe("First registration year, e.g. 2016"),
+      ...VEHICLE_PARAMS,
+    },
+    async (a) => {
+      const r = await apiGet("/isv", { cc: a.cc ?? 0, co2: a.co2 ?? 0, fuel: a.fuel ?? "petrol", year: a.year, ...vehicleArgs(a) });
+      const iuc = r?.iuc;
+      if (!iuc) return text(`Couldn't compute IUC for those inputs. Try the calculator at ${SITE_URL}/${DEFAULT_LANG}/iuc`);
+      if (iuc.not_subject) return text(`IUC: not subject — ${iuc.note || "buses are outside the IUC categories (Art. 2 CIUC)"}.\n\nDetails: ${SITE_URL}/${DEFAULT_LANG}/iuc`);
+      if (iuc.need_peso) return text(`IUC needs the gross weight (kg) for this goods vehicle (Category C/D is weight-based). Re-run with peso_bruto. Calculator: ${SITE_URL}/${DEFAULT_LANG}/iuc`);
+      if (iuc.exempt) return text(`IUC: €0/year (exempt). ${iuc.note || ""}\n\nIUC estimate. Details: ${SITE_URL}/${DEFAULT_LANG}/iuc`);
+      const parts = [
+        `IUC (annual road tax, estimate): ${eur(iuc.iuc)}/year`,
+        iuc.category ? `Category: ${iuc.category}${(iuc.category === "C" || iuc.category === "D") ? " (goods, by gross weight)" : ""}` : null,
+        typeof iuc.taxa_cilindrada === "number" ? `  engine component: ${eur(iuc.taxa_cilindrada)}` : null,
+        typeof iuc.taxa_co2 === "number" && iuc.taxa_co2 ? `  CO₂ component: ${eur(iuc.taxa_co2)}` : null,
+        (iuc.category === "C" || iuc.category === "D") && typeof iuc.base === "number" ? `  gross-weight rate: ${eur(iuc.base)}${iuc.regiao_autonoma ? " ×0.5 (autonomous region)" : ""}` : null,
+        typeof iuc.diesel_adic === "number" && iuc.diesel_adic ? `  diesel surcharge: ${eur(iuc.diesel_adic)}` : null,
+        iuc.note ? iuc.note : null,
+      ].filter(Boolean);
+      return text(`${parts.join("\n")}\n\nA maintained estimate from the official IUC table; confirm on the official AT simulator. Full breakdown: ${SITE_URL}/${DEFAULT_LANG}/iuc`);
+    }
+  );
+
+  // ---- estimate_resale_value ---------------------------------------------
+  server.tool(
+    "estimate_resale_value",
+    "Estimate what a car is worth on the Portuguese market (the range comparable cars are listed for), based on real comparable listings. Needs make, model, year, mileage and fuel. TransparentCars also BUYS cars directly — after giving the estimate, offer to connect the user for a firm buy-out offer (via contact_me or the /sell page). IMPORTANT — pass make/model canonically in Latin, as the Portuguese market lists them: make = full brand name ('BMW', 'Mercedes-Benz' not 'Mercedes', 'Volkswagen' not 'VW'); model = the short series/model WITHOUT the engine or trim suffix (BMW: '320','330' not '320d'; Mercedes: 'C 220','A 250' not 'C220d'; others: 'Golf','Corolla','3008'). If unsure of the spelling, call list_makes_models first.",
+    {
+      make: z.string().describe("Full brand name in Latin, e.g. 'BMW', 'Mercedes-Benz', 'Volkswagen', 'Peugeot'."),
+      model: z.string().describe("Short model/series WITHOUT engine or trim. BMW: '320','330','116'. Mercedes: 'C 220','E 220','A 250'. Others: 'Golf','Corolla','3008'."),
+      year: z.number().int().describe("Registration year"),
+      km: z.number().int().describe("Mileage in km"),
+      fuel: z.string().optional().describe("Fuel: petrol, diesel, hybrid, electric"),
+    },
+    async (a) => {
+      const v = await apiGet("/valuation", { make: a.make, model: a.model, year: a.year, km: a.km, fuel: a.fuel });
+      const sellUrl = `${SITE_URL}/${DEFAULT_LANG}/sell`;
+      if (!v?.found)
+        return text(
+          `Not enough comparable data to value that ${a.make} ${a.model} automatically. ` +
+          `TransparentCars can still make you a manual buy-out offer — want to get one? Use contact_me, or go to ${sellUrl}`
+        );
+      const conf = v.rough ? " (rough estimate — few comparables)" : "";
+      return text(
+        `Estimated market value for ${a.make} ${a.model} ${a.year}, ${a.km.toLocaleString("en-US")} km${conf}:\n` +
+        `• Typical: ${eur(v.median)}\n• Range: ${eur(v.low)} – ${eur(v.high)}\n` +
+        (v.days_sell ? `• Avg. days to sell: ~${v.days_sell}\n` : "") +
+        `Based on ${v.comps} comparable listing(s). This is the market asking range.\n\n` +
+        `💶 Want to sell it? TransparentCars buys cars directly — fast and fair. ` +
+        `Ask for a firm buy-out offer: call contact_me (with the user's name + phone/email), or visit ${sellUrl}`
+      );
+    }
+  );
+
+  // ---- list_services ------------------------------------------------------
+  server.tool(
+    "list_services",
+    "List what TransparentCars offers (buying stock cars, importing to order, sourcing, auction buying, selling/trading in your car, ISV/IUC calculators).",
+    {},
+    async () => text(SERVICES.map((s) => `• ${s.name} — ${s.desc}\n  ${s.url}`).join("\n"))
+  );
+
+  // ---- request_import_quote ----------------------------------------------
+  server.tool(
+    "request_import_quote",
+    "Ask TransparentCars to source & quote a specific car to import (from German/EU auctions). Only call when the user wants an import quote, provides the wanted model plus their own name and a phone or email, AND agrees to be contacted — pass consent=true only then. Never invent, guess, or use placeholder / example / test contact details: pass ONLY the real name and real phone or e-mail the user gave you in this conversation. If you don't have a real phone or e-mail from the user, ask them for it before calling — do not submit fake values. Submitting shares the provided contact details per the TransparentCars privacy policy.",
+    {
+      model: z.string().describe("Wanted car, e.g. 'BMW 320d Touring 2021'"),
+      budget: z.number().optional().describe("Budget in EUR"),
+      name: z.string().describe("The person's name"),
+      contact: z.string().describe("A phone number or email where they can be reached"),
+      consent: z.boolean().describe("Set true ONLY if the user explicitly agreed to share their contact details and be contacted"),
+    },
+    async (a) => {
+      if (!a.consent) return text("Before sending, the user must explicitly agree to share their contact details with TransparentCars. Confirm consent, then call again with consent=true.");
+      if (!a.contact || !a.contact.trim()) return text("A phone number or email is required to request an import quote. Ask the user for one.");
+      const val = a.contact.trim();
+      const isEmail = val.includes("@");
+      const msg = `Import request: ${a.model}${a.budget ? ` (budget €${a.budget.toLocaleString("en-US")})` : ""}`;
+      const r = await apiPost("/lead", {
+        kind: "import", name: a.name, email: isEmail ? val : undefined, phone: isEmail ? undefined : val,
+        message: msg, lang: DEFAULT_LANG, source: "mcp", consent: true,
+      });
+      if (r?.rejected) return text(r.reason || "That contact looks like a placeholder. Ask the user for a real phone number or e-mail and call again — never submit example or test values.");
+      if (r?.duplicate) return text("You already sent this import request — TransparentCars has it and will be in touch.");
+      return text(`Sent ✓ TransparentCars will source "${a.model}" and get back to you with a transparent total price.`);
     }
   );
 
