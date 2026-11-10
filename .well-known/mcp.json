@@ -1,14 +1,22 @@
 {
   "name": "transparentcars",
-  "description": "Search budget used cars in Portugal, check whether an asking price is fair, estimate a car's yearly running cost, and reach TransparentCars.",
-  "version": "0.1.0",
+  "description": "Search used cars in Portugal, check whether a price is fair, calculate Portuguese car taxes (ISV/IUC) and the full cost of importing a car from Germany, and reach TransparentCars.",
+  "version": "0.2.0",
   "vendor": "TransparentCars",
   "homepage": "https://transparent.pt",
   "documentation": "https://github.com/transparentpt/mcp",
   "license": "MIT",
   "transports": {
-    "streamable_http": { "url": "https://transparent.pt/mcp" },
-    "stdio": { "command": "npx", "args": ["-y", "transparentcars-mcp"] }
+    "streamable_http": {
+      "url": "https://transparent.pt/mcp"
+    },
+    "stdio": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "transparentcars-mcp"
+      ]
+    }
   },
   "tools": [
     "search_inventory",
@@ -16,6 +24,12 @@
     "check_fair_price",
     "cost_to_own",
     "list_makes_models",
-    "contact_me"
+    "contact_me",
+    "calculate_isv",
+    "calculate_import_cost",
+    "calculate_iuc",
+    "estimate_resale_value",
+    "list_services",
+    "request_import_quote"
   ]
 }

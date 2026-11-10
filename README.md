@@ -6,7 +6,7 @@
 
 [![MCP](https://img.shields.io/badge/MCP-server-blue)](https://modelcontextprotocol.io) [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
 
-An [MCP](https://modelcontextprotocol.io) server that lets AI assistants work with **[TransparentCars](https://transparent.pt)** — honest, budget used cars for the local Portuguese market. Search live stock, check whether a car's asking price is actually fair, estimate the yearly cost of keeping a car on the road, and get in touch.
+An [MCP](https://modelcontextprotocol.io) server that lets AI assistants work with **[TransparentCars](https://transparent.pt)** — honest used cars in Portugal, and cars imported from Germany to order. Search live stock, check whether a car's asking price is actually fair, work out Portuguese car taxes and the full cost of importing a car from Germany, and get in touch.
 
 It's a thin, open-source wrapper over the public `transparent.pt` API — no keys, no setup beyond adding the server.
 
@@ -20,6 +20,12 @@ It's a thin, open-source wrapper over the public `transparent.pt` API — no key
 | `cost_to_own` | The annual IUC road tax + a plain running-cost framing for budgeting |
 | `list_makes_models` | Canonical brand/model names the other tools expect |
 | `contact_me` | Ask a human to get in touch (needs the user's consent + contact) |
+| `calculate_isv` | Portuguese ISV (registration/import tax) from cc, CO₂, fuel and year |
+| `calculate_import_cost` | Full cost of importing a car from Germany/EU to Portugal: car (net/gross VAT handled), transport, paperwork, service and ISV in one total, IUC/year apart |
+| `calculate_iuc` | Annual IUC road tax |
+| `estimate_resale_value` | Market value range for a car you own |
+| `list_services` | What TransparentCars does (stock, import, sourcing, auctions, trade-in, calculators) |
+| `request_import_quote` | Ask for a firm import quote for a specific car (needs consent + real contact) |
 
 The **fair-price check** is the point: paste any listing's price and get a straight answer on whether it's a good deal — no sales spin.
 

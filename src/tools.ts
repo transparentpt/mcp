@@ -41,6 +41,7 @@ const SERVICES = [
   { name: "Auction buying", desc: "We bid for you at professional auctions (Auto1 etc.).", url: `${SITE_URL}/${DEFAULT_LANG}/auction` },
   { name: "We buy / trade-in your car", desc: "Free valuation, fast fair payout.", url: `${SITE_URL}/${DEFAULT_LANG}/sell` },
   { name: "ISV & IUC calculators", desc: "Free Portuguese car-tax estimates.", url: `${SITE_URL}/${DEFAULT_LANG}/isv` },
+  { name: "Import cost calculator", desc: "Full cost of bringing a car from Germany to Portugal: car (VAT net/gross), transport, paperwork, service, ISV.", url: `${SITE_URL}/${DEFAULT_LANG}/custo-importacao` },
 ];
 
 export function registerTools(server: McpServer) {
@@ -278,6 +279,46 @@ export function registerTools(server: McpServer) {
         isv?.note ? isv.note : null,
       ].filter(Boolean);
       return text(`${parts.join("\n")}\n\nA maintained estimate from the official cc+CO₂ formula — matches the AT (Finanças) simulator to the cent on the common cases; confirm edge cases on the official simulator. Full breakdown: ${SITE_URL}/${DEFAULT_LANG}/isv`);
+    }
+  );
+
+  // ---- calculate_import_cost ----------------------------------------------
+  server.tool(
+    "calculate_import_cost",
+    "Full turnkey cost of importing a car from Germany / another EU country (e.g. a mobile.de or AutoScout24 listing) to Portugal through TransparentCars: car price + transport + paperwork (inspection, IMT, plates) + TransparentCars service + ISV, as one total, with the yearly IUC road tax shown apart. Handles net/gross VAT: if the dealer listing shows deductible VAT (two prices, e.g. '€36,958 Net, 19% VAT' / 'MwSt. ausweisbar'), pass vat='gross' — the German VAT is removed and Portuguese IVA 23% applied to the net price. Private sellers / margin-scheme cars: vat='final'. An estimate (final ISV is set by the tax authority from the COC). For the tax alone use calculate_isv.",
+    {
+      price: z.number().positive().describe("Price on the listing in EUR, e.g. 19500"),
+      vat: z.enum(["final", "gross", "net"]).optional().describe("How to read price: final (default; private seller / margin scheme, no VAT line), gross (dealer price incl. deductible seller-country VAT), net (price without VAT)"),
+      vat_rate: z.number().optional().describe("Seller-country VAT % for vat=gross (DE 19 default, AT 20, IT 22, ES 21, FR 20, NL 21, BE 21)"),
+      cc: z.number().int().optional().describe("Engine displacement in cm³ (0 for electric)"),
+      co2: z.number().optional().describe("CO₂ g/km (WLTP)"),
+      fuel: z.string().optional().describe("petrol, diesel, hybrid, hybrid_diesel, phev, electric, lpg"),
+      year: z.number().int().describe("First registration year, e.g. 2021"),
+      month: z.number().int().min(1).max(12).optional().describe("First registration month 1-12"),
+      range_km: z.number().int().optional().describe("Electric range in km (plug-in hybrids: >=50 km gives the 75% ISV reduction)"),
+      used: z.boolean().optional().describe("Used (true, default) or new (false: up to 6 months / 6,000 km)"),
+    },
+    async (a) => {
+      const r = await apiGet("/import-cost", {
+        price: a.price, vat: a.vat ?? "final", vat_rate: a.vat_rate, cc: a.cc ?? 0, co2: a.co2 ?? 0,
+        fuel: a.fuel ?? "petrol", year: a.year, month: a.month, range_km: a.range_km,
+        used: a.used === false ? 0 : 1,
+      });
+      const c = r?.car || {};
+      const carLine = c.net != null
+        ? `Car: ${eur(c.cost)} (net ${eur(c.net)} + Portuguese IVA ${c.pt_iva_pct}%; listing ${eur(c.listing_price)})`
+        : `Car: ${eur(c.cost)}`;
+      const lines = [
+        `Turnkey total with Portuguese plates (estimate): ${eur(r?.total_eur)}`,
+        carLine,
+        `Transport Germany → Portugal: ${eur(r?.transport_eur)}`,
+        `Paperwork (inspection, IMT, registration, plates): ${eur(r?.paperwork_eur)}`,
+        `TransparentCars turnkey service: ${eur(r?.service_eur)}`,
+        `ISV (vehicle tax): ${eur(r?.isv_eur)}`,
+        r?.iuc_per_year_eur != null ? `Then every year: IUC road tax ≈ ${eur(r.iuc_per_year_eur)} (ownership cost, not in the total)` : null,
+        ...(Array.isArray(r?.warnings) && r.warnings.length ? ["Warnings: " + r.warnings.join("; ")] : []),
+      ].filter(Boolean);
+      return text(`${lines.join("\n")}\n\nEstimate: final ISV is set by the tax authority from the COC; VAT treatment is confirmed in the quote. Interactive calculator (paste a mobile.de link): ${SITE_URL}/${DEFAULT_LANG}/custo-importacao — to get a firm quote, use request_import_quote.`);
     }
   );
 

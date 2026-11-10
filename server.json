@@ -6,14 +6,14 @@
     "url": "https://github.com/transparentpt/mcp",
     "source": "github"
   },
-  "version": "0.1.0",
+  "version": "0.2.0",
   "websiteUrl": "https://transparent.pt",
   "packages": [
     {
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "transparentcars-mcp",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "runtimeHint": "npx",
       "transport": { "type": "stdio" }
     }
