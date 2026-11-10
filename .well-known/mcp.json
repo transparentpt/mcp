@@ -1,7 +1,7 @@
 {
   "name": "transparentcars",
-  "description": "Search used cars in Portugal, check whether a price is fair, calculate Portuguese car taxes (ISV/IUC) and the full cost of importing a car from Germany, and reach TransparentCars.",
-  "version": "0.2.0",
+  "description": "Search used cars in Portugal, check whether a price is fair, calculate Portuguese car taxes (ISV/IUC), the full cost of importing a car from Germany, and the cost of legalising a car already in Portugal.",
+  "version": "0.3.0",
   "vendor": "TransparentCars",
   "homepage": "https://transparent.pt",
   "documentation": "https://github.com/transparentpt/mcp",
@@ -27,6 +27,7 @@
     "contact_me",
     "calculate_isv",
     "calculate_import_cost",
+    "calculate_legalization_cost",
     "calculate_iuc",
     "estimate_resale_value",
     "list_services",

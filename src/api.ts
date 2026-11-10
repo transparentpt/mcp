@@ -8,7 +8,7 @@ export const API_BASE =
 export const SITE = process.env.TC_SITE || "transparentcars";
 export const DEFAULT_LANG = process.env.TC_LANG || "en";
 
-const UA = "transparentcars-mcp/0.2";
+const UA = "transparentcars-mcp/0.3";
 
 async function req(path: string, init?: RequestInit): Promise<any> {
   const url = path.startsWith("http") ? path : `${API_BASE}${path}`;

@@ -22,6 +22,7 @@ It's a thin, open-source wrapper over the public `transparent.pt` API — no key
 | `contact_me` | Ask a human to get in touch (needs the user's consent + contact) |
 | `calculate_isv` | Portuguese ISV (registration/import tax) from cc, CO₂, fuel and year |
 | `calculate_import_cost` | Full cost of importing a car from Germany/EU to Portugal: car (net/gross VAT handled), transport, paperwork, service and ISV in one total, IUC/year apart |
+| `calculate_legalization_cost` | Cost to legalise a car already in Portugal: fixed service fee + ISV + state fees (+ COC if missing), with what's included and what's paid separately |
 | `calculate_iuc` | Annual IUC road tax |
 | `estimate_resale_value` | Market value range for a car you own |
 | `list_services` | What TransparentCars does (stock, import, sourcing, auctions, trade-in, calculators) |

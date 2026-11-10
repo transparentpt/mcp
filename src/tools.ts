@@ -41,6 +41,7 @@ const SERVICES = [
   { name: "Auction buying", desc: "We bid for you at professional auctions (Auto1 etc.).", url: `${SITE_URL}/${DEFAULT_LANG}/auction` },
   { name: "We buy / trade-in your car", desc: "Free valuation, fast fair payout.", url: `${SITE_URL}/${DEFAULT_LANG}/sell` },
   { name: "ISV & IUC calculators", desc: "Free Portuguese car-tax estimates.", url: `${SITE_URL}/${DEFAULT_LANG}/isv` },
+  { name: "Car legalisation (car already in Portugal)", desc: "Fixed service fee; ISV and state fees paid separately at real cost.", url: `${SITE_URL}/${DEFAULT_LANG}/legalizacao` },
   { name: "Import cost calculator", desc: "Full cost of bringing a car from Germany to Portugal: car (VAT net/gross), transport, paperwork, service, ISV.", url: `${SITE_URL}/${DEFAULT_LANG}/custo-importacao` },
 ];
 
@@ -319,6 +320,40 @@ export function registerTools(server: McpServer) {
         ...(Array.isArray(r?.warnings) && r.warnings.length ? ["Warnings: " + r.warnings.join("; ")] : []),
       ].filter(Boolean);
       return text(`${lines.join("\n")}\n\nEstimate: final ISV is set by the tax authority from the COC; VAT treatment is confirmed in the quote. Interactive calculator (paste a mobile.de link): ${SITE_URL}/${DEFAULT_LANG}/custo-importacao — to get a firm quote, use request_import_quote.`);
+    }
+  );
+
+  // ---- calculate_legalization_cost ----------------------------------------
+  server.tool(
+    "calculate_legalization_cost",
+    "Cost of legalising a car that is ALREADY in Portugal (registered in another EU country, brought in by the owner) through TransparentCars: a fixed service fee + ISV + state fees (inspection, IMT, registration, DUA, plates) + the COC if it is missing, returned as a low/high range. Only the service fee is TransparentCars' price; ISV, state fees and the COC are paid separately at real cost against official receipts. Also returns exactly what the fee includes and what it doesn't. Use this when the user already has the car; for buying and importing a car use calculate_import_cost.",
+    {
+      cc: z.number().int().optional().describe("Engine displacement in cm³ (0 for electric)"),
+      co2: z.number().optional().describe("CO₂ g/km (WLTP)"),
+      fuel: z.string().optional().describe("petrol, diesel, hybrid, hybrid_diesel, phev, electric, lpg"),
+      year: z.number().int().describe("First registration year, e.g. 2019"),
+      month: z.number().int().min(1).max(12).optional().describe("First registration month 1-12"),
+      range_km: z.number().int().optional().describe("Electric range in km (plug-in hybrids)"),
+      has_coc: z.boolean().optional().describe("Does the car have its COC (certificate of conformity)? Default true; false adds the COC cost range"),
+    },
+    async (a) => {
+      const r = await apiGet("/legalization-cost", {
+        cc: a.cc ?? 0, co2: a.co2 ?? 0, fuel: a.fuel ?? "petrol", year: a.year, month: a.month,
+        range_km: a.range_km, coc: a.has_coc === false ? 0 : 1,
+      });
+      const rng = (x: any) => (x ? `${eur(x.low)}–${eur(x.high)}` : "—");
+      const lines = [
+        `Legalisation total (estimate): ${rng(r?.total_eur)}`,
+        `TransparentCars service (fixed price): ${eur(r?.service_eur)}`,
+        `ISV (paid to the tax authority, at real cost): ${eur(r?.isv_eur)}`,
+        `State fees — inspection, IMT, registration, DUA, plates (at real cost): ≈ ${rng(r?.state_fees_eur)}`,
+        r?.coc_eur ? `COC from the manufacturer (missing, at real cost): ${rng(r.coc_eur)}` : null,
+        r?.iuc_per_year_eur != null ? `Then every year: IUC road tax ≈ ${eur(r.iuc_per_year_eur)}` : null,
+        Array.isArray(r?.included_in_service) ? `Included in the service fee: ${r.included_in_service.join("; ")}.` : null,
+        Array.isArray(r?.not_included) ? `Not included (paid separately): ${r.not_included.join("; ")}.` : null,
+        ...(Array.isArray(r?.warnings) && r.warnings.length ? ["Warnings: " + r.warnings.join("; ")] : []),
+      ].filter(Boolean);
+      return text(`${lines.join("\n")}\n\nEstimate: final ISV is set by the tax authority; state fees are paid at the official receipt amount. Service page: ${SITE_URL}/${DEFAULT_LANG}/legalizacao — to get a quote, use request_import_quote or contact_me.`);
     }
   );
 

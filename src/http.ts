@@ -38,7 +38,7 @@ function readBody(req: IncomingMessage): Promise<any> {
 }
 
 async function handleMcp(req: IncomingMessage, res: ServerResponse) {
-  const server = new McpServer({ name: "transparentcars", version: "0.2.0" });
+  const server = new McpServer({ name: "transparentcars", version: "0.3.0" });
   registerTools(server);
   const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
   res.on("close", () => {

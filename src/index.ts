@@ -4,7 +4,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { registerTools } from "./tools.js";
 
-const server = new McpServer({ name: "transparentcars", version: "0.2.0" });
+const server = new McpServer({ name: "transparentcars", version: "0.3.0" });
 registerTools(server);
 
 const transport = new StdioServerTransport();
